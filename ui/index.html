@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NodePanel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Discord-inspired dark colors */
+      --bg-primary: #1e1f22;
+      --bg-secondary: #2b2d31;
+      --bg-tertiary: #313338;
+      --bg-hover: #35373c;
+      
+      /* Spotify green accents */
+      --accent-green: #1db954;
+      --accent-green-hover: #1ed760;
+      --accent-green-dark: #169c46;
+      
+      /* Discord blue for secondary actions */
+      --accent-blue: #5865f2;
+      --accent-blue-hover: #4752c4;
+      
+      /* Status colors */
+      --status-online: #23a559;
+      --status-offline: #80848e;
+      --status-error: #f23f43;
+      --status-warning: #f0b232;
+      
+      /* Text colors */
+      --text-primary: #f2f3f5;
+      --text-secondary: #b5bac1;
+      --text-muted: #80848e;
+      
+      /* Borders */
+      --border-color: #3f4147;
+      
+      /* Shadows */
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 0;
+      margin: 0;
+      overflow-x: hidden;
+    }
+    
+    /* Animated background gradient */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle at 20% 80%, rgba(29, 185, 84, 0.08) 0%, transparent 50%),
+                  radial-gradient(circle at 80% 20%, rgba(88, 101, 242, 0.06) 0%, transparent 50%);
+      animation: rotate 30s linear infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+    
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Main container */
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+    
+    /* Header */
+    h1 {
+      font-size: 42px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, var(--accent-green) 0%, var(--accent-blue) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.5px;
+      animation: slideDown 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    h2 {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: var(--text-primary);
+      letter-spacing: -0.3px;
+    }
+    
+    h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 32px 0 16px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-size: 14px;
+    }
+    
+    /* Cards */
+    .card {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow-sm);
+      animation: fadeIn 0.5s ease-out;
+      animation-fill-mode: both;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .card:hover {
+      border-color: var(--accent-green);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
+    }
+    
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    #login { animation-delay: 0.1s; }
+    #app { animation-delay: 0.2s; }
+    
+    /* Input fields */
+    input {
+      background: var(--bg-tertiary);
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+      transition: all 0.2s ease;
+      outline: none;
+      min-width: 200px;
+    }
+    
+    input:focus {
+      border-color: var(--accent-green);
+      box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.1);
+    }
+    
+    input::placeholder {
+      color: var(--text-muted);
+    }
+    
+    /* Buttons */
+    button {
+      background: var(--accent-green);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    button::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+    }
+    
+    button:hover::before {
+      width: 300px;
+      height: 300px;
+    }
+    
+    button:hover {
+      background: var(--accent-green-hover);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    button.secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+    
+    button.secondary:hover {
+      background: var(--bg-hover);
+    }
+    
+    button.danger {
+      background: var(--status-error);
+    }
+    
+    button.danger:hover {
+      background: #d92d2f;
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    /* Row layout */
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    
+    /* Status badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    
+    .badge::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .badge.online {
+      background: rgba(35, 165, 89, 0.15);
+      color: var(--status-online);
+    }
+    
+    .badge.online::before {
+      background: var(--status-online);
+      box-shadow: 0 0 8px var(--status-online);
+    }
+    
+    .badge.stopped {
+      background: rgba(128, 132, 142, 0.15);
+      color: var(--status-offline);
+    }
+    
+    .badge.stopped::before {
+      background: var(--status-offline);
+      animation: none;
+    }
+    
+    .badge.error {
+      background: rgba(242, 63, 67, 0.15);
+      color: var(--status-error);
+    }
+    
+    .badge.error::before {
+      background: var(--status-error);
+      box-shadow: 0 0 8px var(--status-error);
+    }
+    
+    /* App grid */
+    .apps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+    
+    .app-card {
+      background: var(--bg-tertiary);
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid var(--border-color);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .app-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-green), var(--accent-blue));
+      transform: scaleX(0);
+      transition: transform 0.3s ease;
+    }
+    
+    .app-card:hover {
+      border-color: var(--accent-green);
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg);
+    }
+    
+    .app-card:hover::before {
+      transform: scaleX(1);
+    }
+    
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+    
+    .app-name {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    
+    .app-stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .stat {
+      background: var(--bg-secondary);
+      padding: 10px;
+      border-radius: 8px;
+    }
+    
+    .stat-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    
+    .stat-value {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    
+    .app-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    
+    .app-actions button {
+      flex: 1;
+      min-width: 80px;
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+    
+    /* Table (fallback) */
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-top: 16px;
+      background: var(--bg-tertiary);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    
+    th, td {
+      padding: 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    th {
+      background: var(--bg-secondary);
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+    }
+    
+    tr:last-child td {
+      border-bottom: none;
+    }
+    
+    tbody tr {
+      transition: background 0.2s ease;
+    }
+    
+    tbody tr:hover {
+      background: var(--bg-hover);
+    }
+    
+    /* Logs */
+    pre {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      padding: 20px;
+      border-radius: 12px;
+      overflow: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      border: 1px solid var(--border-color);
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.2);
+      max-height: 500px;
+    }
+    
+    pre::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+    
+    pre::-webkit-scrollbar-track {
+      background: var(--bg-secondary);
+      border-radius: 6px;
+    }
+    
+    pre::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 6px;
+      border: 2px solid var(--bg-secondary);
+    }
+    
+    pre::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-green);
+    }
+    
+    /* Status messages */
+    #loginStatus, #status {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      animation: slideIn 0.3s ease;
+    }
+    
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+    
+    /* Loading animation */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border-color);
+      border-top-color: var(--accent-green);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container {
+        padding: 20px 16px;
+      }
+      
+      h1 {
+        font-size: 32px;
+      }
+      
+      .apps-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      input {
+        min-width: 150px;
+      }
+      
+      .row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      button {
+        width: 100%;
+      }
+    }
+    
+    /* Utility classes */
+    .hidden {
+      display: none !important;
+    }
+    
+    .text-muted {
+      color: var(--text-muted);
+    }
+    
+    .text-success {
+      color: var(--status-online);
+    }
+    
+    .text-error {
+      color: var(--status-error);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎵 NodePanel</h1>
+
+    <div id="login" class="card">
+      <h2>Login</h2>
+      <div class="row">
+        <input id="user" placeholder="Username" value="admin" />
+        <input id="pass" placeholder="Passwort" type="password" />
+        <button id="loginBtn">Login</button>
+        <span id="loginStatus"></span>
+      </div>
+    </div>
+
+    <div id="app" class="card hidden">
+      <h2>Apps verwalten</h2>
+
+      <div class="row">
+        <input id="newName" placeholder="app-name (a-z, 0-9, _, -)" />
+        <input id="newPort" placeholder="Port (optional)" type="number" />
+        <button id="createBtn">App erstellen</button>
+        <button id="refreshBtn" class="secondary">🔄 Refresh</button>
+        <span id="status"></span>
+      </div>
+
+      <div id="appsContainer"></div>
+
+      <h3>📜 Logs</h3>
+      <div class="row">
+        <input id="logApp" placeholder="App-Name" />
+        <button id="logsBtn" class="secondary">Logs laden</button>
+      </div>
+      <pre id="logs">(Keine Logs geladen)</pre>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

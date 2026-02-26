@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NodePanel</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    input, button { padding: 8px 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th, td { border-bottom: 1px solid #ddd; padding: 10px; text-align: left; }
+    .badge { padding: 2px 8px; border: 1px solid #ccc; border-radius: 999px; font-size: 12px; }
+    pre { background: #0b0b0b; color: #eaeaea; padding: 12px; border-radius: 8px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>NodePanel</h1>
+
+  <div id="login">
+    <h2>Login</h2>
+    <div class="row">
+      <input id="user" placeholder="User" value="admin" />
+      <input id="pass" placeholder="Passwort" type="password" />
+      <button id="loginBtn">Login</button>
+      <span id="loginStatus"></span>
+    </div>
+  </div>
+
+  <div id="app" style="display:none;">
+    <h2>Apps</h2>
+
+    <div class="row">
+      <input id="newName" placeholder="app-name (a-z,0-9,_,-)" />
+      <input id="newPort" placeholder="port (optional)" type="number" />
+      <button id="createBtn">Erstellen</button>
+      <button id="refreshBtn">Refresh</button>
+      <span id="status"></span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Status</th>
+          <th>PID</th>
+          <th>CPU</th>
+          <th>RAM</th>
+          <th>Restarts</th>
+          <th>Aktionen</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <h3>Logs</h3>
+    <div class="row">
+      <input id="logApp" placeholder="app-name" />
+      <button id="logsBtn">Logs laden</button>
+    </div>
+    <pre id="logs">(keine)</pre>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
