@@ -5,6 +5,7 @@ let token = localStorage.getItem("token") || "";
 const loginDiv = document.getElementById('login');
 const appDiv = document.getElementById('app');
 const loginBtn = document.getElementById('loginBtn');
+const logoutBtn = document.getElementById('logoutBtn');
 const userInput = document.getElementById('user');
 const passInput = document.getElementById('pass');
 const loginStatus = document.getElementById('loginStatus');
@@ -35,7 +36,12 @@ async function api(path, opts = {}) {
   if (token) headers["Authorization"] = "Bearer " + token;
   if (opts.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
   const res = await fetch(path, { ...opts, headers });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const text = await res.text();
+    const err = new Error(text || res.statusText);
+    err.status = res.status;
+    throw err;
+  }
   return res;
 }
 
@@ -47,6 +53,14 @@ function showStatus(element, message, type = 'info') {
     element.textContent = '';
     element.className = '';
   }, 3000);
+}
+
+// Logout handler
+function doLogout() {
+  token = "";
+  localStorage.removeItem("token");
+  stopAutoRefresh();
+  setAuthUI();
 }
 
 // Login handler
@@ -124,7 +138,10 @@ async function refresh() {
     
     const res = await api("/api/apps");
     const apps = await res.json();
-    
+
+    // Token is valid – ensure app UI is visible
+    setAuthUI();
+
     if (apps.length === 0) {
       appsContainer.innerHTML = `
         <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
@@ -136,22 +153,24 @@ async function refresh() {
       status.textContent = '';
       return;
     }
-    
+
     // Create card-based layout
     appsContainer.innerHTML = `<div class="apps-grid">${apps.map((app, index) => createAppCard(app, index)).join('')}</div>`;
-    
+
     status.textContent = '';
   } catch (e) {
-    status.textContent = `✗ Fehler: ${e.message}`;
-    status.className = 'text-error';
-    
-    // Check for 401 unauthorized
-    if (String(e.message).includes("401")) {
+    // Check for 401 unauthorized (expired / invalid token)
+    if (e.status === 401) {
       token = "";
       localStorage.removeItem("token");
+      stopAutoRefresh();
       setAuthUI();
-      showStatus(loginStatus, '✗ Session abgelaufen - bitte neu einloggen', 'error');
+      showStatus(loginStatus, '✗ Session abgelaufen – bitte neu einloggen', 'error');
+      return;
     }
+
+    status.textContent = `✗ Fehler: ${e.message}`;
+    status.className = 'text-error';
     
     appsContainer.innerHTML = `
       <div style="text-align: center; padding: 40px; color: var(--text-error);">
@@ -301,6 +320,7 @@ document.addEventListener("click", (e) => {
 
   // Button handlers
   if (t.id === "loginBtn") doLogin();
+  if (t.id === "logoutBtn") doLogout();
   if (t.id === "createBtn") createApp();
   if (t.id === "refreshBtn") refresh();
   if (t.id === "logsBtn") loadLogs();
@@ -336,10 +356,13 @@ function stopAutoRefresh() {
 }
 
 // Initialize
-setAuthUI();
 if (token) {
-  refresh();
-  startAutoRefresh();
+  // Token in localStorage: validate it first before showing app screen.
+  // refresh() calls setAuthUI() on success, or clears token + shows login on 401.
+  refresh().then(() => startAutoRefresh());
+} else {
+  // No token: show login form immediately.
+  setAuthUI();
 }
 
 // Clean up on page unload
