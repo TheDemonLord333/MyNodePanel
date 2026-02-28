@@ -18,6 +18,8 @@ const appsContainer = document.getElementById('appsContainer');
 const logsBtn = document.getElementById('logsBtn');
 const logAppInput = document.getElementById('logApp');
 const logsPre = document.getElementById('logs');
+const templateSelect = document.getElementById('templateSelect');
+const templateDesc = document.getElementById('templateDesc');
 
 // Set auth UI state
 function setAuthUI() {
@@ -55,12 +57,43 @@ function showStatus(element, message, type = 'info') {
   }, 3000);
 }
 
+// Password visibility toggle
+const EYE_OPEN = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+const EYE_OFF  = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>`;
+
+function togglePassword() {
+  const visible = passInput.type === 'text';
+  passInput.type = visible ? 'password' : 'text';
+  document.getElementById('eyeIcon').innerHTML = visible ? EYE_OPEN : EYE_OFF;
+  document.getElementById('passToggle').setAttribute('aria-label', visible ? 'Passwort anzeigen' : 'Passwort verbergen');
+}
+
 // Logout handler
 function doLogout() {
   token = "";
   localStorage.removeItem("token");
   stopAutoRefresh();
   setAuthUI();
+}
+
+// Load templates from API and populate the select
+async function loadTemplates() {
+  try {
+    const res = await api("/api/templates");
+    const templates = await res.json();
+
+    templateSelect.innerHTML = templates
+      .map(t => `<option value="${t.id}">${t.label}</option>`)
+      .join('');
+
+    // Show description for the selected template
+    const descMap = Object.fromEntries(templates.map(t => [t.id, t.description]));
+    const updateDesc = () => { templateDesc.textContent = descMap[templateSelect.value] || ''; };
+    templateSelect.addEventListener('change', updateDesc);
+    updateDesc();
+  } catch {
+    // Templates unavailable – leave select empty, createApp still works with server default
+  }
 }
 
 // Login handler
@@ -86,7 +119,7 @@ async function doLogin() {
 
     showStatus(loginStatus, '✓ Login erfolgreich!', 'success');
     setAuthUI();
-    await refresh();
+    await Promise.all([loadTemplates(), refresh()]);
   } catch (e) {
     showStatus(loginStatus, `✗ Login fehlgeschlagen: ${e.message}`, 'error');
   }
@@ -113,6 +146,7 @@ async function createApp() {
     
     const body = { name };
     if (portVal) body.port = Number(portVal);
+    if (templateSelect.value) body.template = templateSelect.value;
     
     await api("/api/apps", { method: "POST", body: JSON.stringify(body) });
     showStatus(statusSpan, `✓ App "${name}" erfolgreich erstellt!`, 'success');
@@ -321,6 +355,7 @@ document.addEventListener("click", (e) => {
   // Button handlers
   if (t.id === "loginBtn") doLogin();
   if (t.id === "logoutBtn") doLogout();
+  if (t.id === "passToggle") togglePassword();
   if (t.id === "createBtn") createApp();
   if (t.id === "refreshBtn") refresh();
   if (t.id === "logsBtn") loadLogs();
@@ -359,7 +394,10 @@ function stopAutoRefresh() {
 if (token) {
   // Token in localStorage: validate it first before showing app screen.
   // refresh() calls setAuthUI() on success, or clears token + shows login on 401.
-  refresh().then(() => startAutoRefresh());
+  refresh().then(() => {
+    loadTemplates();
+    startAutoRefresh();
+  });
 } else {
   // No token: show login form immediately.
   setAuthUI();
