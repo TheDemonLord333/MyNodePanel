@@ -7,7 +7,7 @@ import path from "node:path";
 
 import { z } from "zod";
 import { authMiddleware, issueToken, verifyPassword } from "./auth.js";
-import { createApp, deleteApp, listApps, sanitizeAppName } from "./apps.js";
+import { createApp, deleteApp, listApps, sanitizeAppName, TEMPLATES } from "./apps.js";
 import { pm2Start, pm2Stop, pm2Delete, pm2ListJson, pm2Logs } from "./pm2.js";
 
 const PORT = Number(process.env.PORT || 3000);
@@ -60,6 +60,12 @@ app.post("/api/login", async (req, res) => {
 
 const requireAuth = authMiddleware(JWT_SECRET);
 
+// ---- Templates ----
+app.get("/api/templates", requireAuth, (req, res) => {
+  const list = Object.values(TEMPLATES).map(({ id, label, description }) => ({ id, label, description }));
+  res.json(list);
+});
+
 // ---- Apps CRUD ----
 app.get("/api/apps", requireAuth, async (req, res) => {
   const apps = await listApps(APPS_DIR);
@@ -84,15 +90,16 @@ app.get("/api/apps", requireAuth, async (req, res) => {
 app.post("/api/apps", requireAuth, async (req, res) => {
   const schema = z.object({
     name: z.string(),
-    port: z.number().int().min(1).max(65535).optional()
+    port: z.number().int().min(1).max(65535).optional(),
+    template: z.string().optional()
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 
-  const { name, port } = parsed.data;
+  const { name, port, template } = parsed.data;
   if (!sanitizeAppName(name)) return res.status(400).json({ error: "Invalid app name" });
 
-  const created = await createApp(APPS_DIR, name, port);
+  const created = await createApp(APPS_DIR, name, port, template);
   res.status(201).json({ ok: true, ...created });
 });
 

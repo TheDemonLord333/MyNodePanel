@@ -18,6 +18,8 @@ const appsContainer = document.getElementById('appsContainer');
 const logsBtn = document.getElementById('logsBtn');
 const logAppInput = document.getElementById('logApp');
 const logsPre = document.getElementById('logs');
+const templateSelect = document.getElementById('templateSelect');
+const templateDesc = document.getElementById('templateDesc');
 
 // Set auth UI state
 function setAuthUI() {
@@ -63,6 +65,26 @@ function doLogout() {
   setAuthUI();
 }
 
+// Load templates from API and populate the select
+async function loadTemplates() {
+  try {
+    const res = await api("/api/templates");
+    const templates = await res.json();
+
+    templateSelect.innerHTML = templates
+      .map(t => `<option value="${t.id}">${t.label}</option>`)
+      .join('');
+
+    // Show description for the selected template
+    const descMap = Object.fromEntries(templates.map(t => [t.id, t.description]));
+    const updateDesc = () => { templateDesc.textContent = descMap[templateSelect.value] || ''; };
+    templateSelect.addEventListener('change', updateDesc);
+    updateDesc();
+  } catch {
+    // Templates unavailable – leave select empty, createApp still works with server default
+  }
+}
+
 // Login handler
 async function doLogin() {
   const user = userInput.value;
@@ -86,7 +108,7 @@ async function doLogin() {
 
     showStatus(loginStatus, '✓ Login erfolgreich!', 'success');
     setAuthUI();
-    await refresh();
+    await Promise.all([loadTemplates(), refresh()]);
   } catch (e) {
     showStatus(loginStatus, `✗ Login fehlgeschlagen: ${e.message}`, 'error');
   }
@@ -113,6 +135,7 @@ async function createApp() {
     
     const body = { name };
     if (portVal) body.port = Number(portVal);
+    if (templateSelect.value) body.template = templateSelect.value;
     
     await api("/api/apps", { method: "POST", body: JSON.stringify(body) });
     showStatus(statusSpan, `✓ App "${name}" erfolgreich erstellt!`, 'success');
@@ -359,7 +382,10 @@ function stopAutoRefresh() {
 if (token) {
   // Token in localStorage: validate it first before showing app screen.
   // refresh() calls setAuthUI() on success, or clears token + shows login on 401.
-  refresh().then(() => startAutoRefresh());
+  refresh().then(() => {
+    loadTemplates();
+    startAutoRefresh();
+  });
 } else {
   // No token: show login form immediately.
   setAuthUI();

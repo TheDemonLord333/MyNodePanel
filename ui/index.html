@@ -550,6 +550,12 @@
       }
     }
     
+    /* Template select focus */
+    #templateSelect:focus {
+      border-color: var(--accent-green);
+      box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.1);
+    }
+
     /* Utility classes */
     .hidden {
       display: none !important;
@@ -591,10 +597,12 @@
       <div class="row">
         <input id="newName" placeholder="app-name (a-z, 0-9, _, -)" />
         <input id="newPort" placeholder="Port (optional)" type="number" />
+        <select id="templateSelect" style="background:var(--bg-tertiary);border:2px solid var(--border-color);border-radius:8px;padding:12px 16px;color:var(--text-primary);font-size:14px;font-family:inherit;cursor:pointer;outline:none;transition:border-color .2s;"></select>
         <button id="createBtn">App erstellen</button>
         <button id="refreshBtn" class="secondary">🔄 Refresh</button>
         <span id="status"></span>
       </div>
+      <p id="templateDesc" style="margin-top:10px;font-size:13px;color:var(--text-muted);min-height:18px;"></p>
 
       <div id="appsContainer"></div>
 
