@@ -583,7 +583,10 @@
     </div>
 
     <div id="app" class="card hidden">
-      <h2>Apps verwalten</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <h2 style="margin-bottom:0;">Apps verwalten</h2>
+        <button id="logoutBtn" class="danger" style="padding:8px 18px;font-size:13px;">Logout</button>
+      </div>
 
       <div class="row">
         <input id="newName" placeholder="app-name (a-z, 0-9, _, -)" />
