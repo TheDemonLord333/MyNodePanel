@@ -6,7 +6,8 @@ import rateLimit from "express-rate-limit";
 import path from "node:path";
 
 import { z } from "zod";
-import { authMiddleware, issueToken, verifyPassword } from "./auth.js";
+import { authMiddleware, issueToken, issueChallenge, verifyChallenge, signToken, decodeToken, verifyPassword } from "./auth.js";
+import { loadSecret, saveSecret, deleteSecret, generateSecret, verifyCode, generateQr } from "./totp.js";
 import { createApp, deleteApp, listApps, sanitizeAppName, TEMPLATES } from "./apps.js";
 import { pm2Start, pm2Stop, pm2Delete, pm2ListJson, pm2Logs } from "./pm2.js";
 
@@ -54,11 +55,98 @@ app.post("/api/login", async (req, res) => {
   const ok = await verifyPassword({ plain: pass, hash: ADMIN_PASS_HASH });
   if (!ok) return res.status(401).json({ error: "Invalid credentials" });
 
+  // If 2FA is enabled, issue a short-lived challenge token instead of the full JWT
+  const twoFaSecret = await loadSecret();
+  if (twoFaSecret) {
+    const challengeToken = issueChallenge({ user, jwtSecret: JWT_SECRET });
+    return res.json({ requires2fa: true, challengeToken });
+  }
+
   const token = issueToken({ user, jwtSecret: JWT_SECRET });
   res.json({ token });
 });
 
 const requireAuth = authMiddleware(JWT_SECRET);
+
+// ---- 2FA ----
+
+// Verify TOTP code after credential check (no auth required – uses challengeToken)
+app.post("/api/2fa/verify", async (req, res) => {
+  const schema = z.object({
+    challengeToken: z.string(),
+    code: z.string().min(6).max(8)
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+
+  const { challengeToken, code } = parsed.data;
+  try {
+    const decoded = verifyChallenge(challengeToken, JWT_SECRET);
+    const secret = await loadSecret();
+    if (!secret) return res.status(400).json({ error: "2FA not configured" });
+    if (!verifyCode(secret, code)) return res.status(401).json({ error: "Ungültiger Code" });
+
+    const token = issueToken({ user: decoded.user, jwtSecret: JWT_SECRET });
+    res.json({ token });
+  } catch {
+    res.status(401).json({ error: "Ungültiger oder abgelaufener Challenge-Token" });
+  }
+});
+
+// Get 2FA status
+app.get("/api/2fa/status", requireAuth, async (req, res) => {
+  const secret = await loadSecret();
+  res.json({ enabled: !!secret });
+});
+
+// Begin 2FA setup – returns QR code + signed setupToken containing the pending secret
+app.get("/api/2fa/setup", requireAuth, async (req, res) => {
+  const existing = await loadSecret();
+  if (existing) return res.status(409).json({ error: "2FA already enabled" });
+
+  const secret = generateSecret();
+  const { otpauth, qrDataUrl } = await generateQr(secret, ADMIN_USER);
+  const setupToken = signToken({ pendingSecret: secret }, JWT_SECRET, { expiresIn: "10m" });
+  res.json({ qrDataUrl, otpauth, setupToken });
+});
+
+// Confirm 2FA setup – verify code and persist secret
+app.post("/api/2fa/setup", requireAuth, async (req, res) => {
+  const schema = z.object({ setupToken: z.string(), code: z.string().min(6).max(8) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+
+  const { setupToken, code } = parsed.data;
+  try {
+    const decoded = decodeToken(setupToken, JWT_SECRET);
+    if (!decoded.pendingSecret) throw new Error("Invalid setup token");
+    if (!verifyCode(decoded.pendingSecret, code)) {
+      return res.status(400).json({ error: "Ungültiger Code – bitte erneut versuchen" });
+    }
+    await saveSecret(decoded.pendingSecret);
+    res.json({ ok: true });
+  } catch (e) {
+    if (e.message === "Ungültiger Code – bitte erneut versuchen") {
+      return res.status(400).json({ error: e.message });
+    }
+    res.status(400).json({ error: "Ungültiger oder abgelaufener Setup-Token" });
+  }
+});
+
+// Disable 2FA – requires a valid current TOTP code
+app.post("/api/2fa/disable", requireAuth, async (req, res) => {
+  const schema = z.object({ code: z.string().min(6).max(8) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+
+  const secret = await loadSecret();
+  if (!secret) return res.json({ ok: true });
+  if (!verifyCode(secret, parsed.data.code)) {
+    return res.status(400).json({ error: "Ungültiger Code" });
+  }
+  await deleteSecret();
+  res.json({ ok: true });
+});
 
 // ---- Templates ----
 app.get("/api/templates", requireAuth, (req, res) => {

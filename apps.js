@@ -171,7 +171,7 @@ client.login(TOKEN);
 
 export function sanitizeAppName(name) {
   if (typeof name !== "string") return null;
-  if (!/^[a-zA-Z0-9_-]{1,50}$/.test(name)) return null;
+  if (!/^[a-zA-Z0-9_-]{1,32}$/.test(name)) return null;
   return name;
 }
 

@@ -584,6 +584,28 @@
       box-shadow: none !important;
     }
 
+    /* TOTP code input */
+    .totp-input {
+      text-align: center;
+      letter-spacing: 8px;
+      font-size: 22px;
+      font-family: 'JetBrains Mono', monospace;
+      max-width: 170px;
+    }
+
+    /* 2FA status dot */
+    .status-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
+    .status-dot.active   { background: var(--status-online);  box-shadow: 0 0 6px var(--status-online); }
+    .status-dot.inactive { background: var(--status-offline); }
+
     /* Template select focus */
     #templateSelect:focus {
       border-color: var(--accent-green);
@@ -614,7 +636,9 @@
 
     <div id="login" class="card">
       <h2>Login</h2>
-      <div class="row">
+
+      <!-- Step 1: credentials -->
+      <div id="loginCredentials" class="row">
         <input id="user" placeholder="Username" value="admin" />
         <div class="pass-wrapper">
           <input id="pass" placeholder="Passwort" type="password" />
@@ -628,6 +652,17 @@
         <button id="loginBtn">Login</button>
         <span id="loginStatus"></span>
       </div>
+
+      <!-- Step 2: TOTP (shown only when 2FA is required) -->
+      <div id="totpSection" class="hidden">
+        <p style="color:var(--text-secondary);font-size:14px;margin-bottom:14px;">🔐 Gib den 6-stelligen Code aus deiner Authenticator-App ein:</p>
+        <div class="row">
+          <input id="totpInput" class="totp-input" placeholder="000000" maxlength="6" inputmode="numeric" autocomplete="one-time-code" />
+          <button id="totpSubmitBtn">Bestätigen</button>
+          <button id="totpBackBtn" class="secondary">Zurück</button>
+        </div>
+        <span id="totpStatus" style="display:block;margin-top:10px;font-size:14px;font-weight:500;"></span>
+      </div>
     </div>
 
     <div id="app" class="card hidden">
@@ -637,8 +672,8 @@
       </div>
 
       <div class="row">
-        <input id="newName" placeholder="app-name (a-z, 0-9, _, -)" />
-        <input id="newPort" placeholder="Port (optional)" type="number" />
+        <input id="newName" placeholder="app-name (a-z, 0-9, _, -)" maxlength="32" />
+        <input id="newPort" placeholder="Port (optional)" type="number" min="1" max="65535" step="1" />
         <select id="templateSelect" style="background:var(--bg-tertiary);border:2px solid var(--border-color);border-radius:8px;padding:12px 16px;color:var(--text-primary);font-size:14px;font-family:inherit;cursor:pointer;outline:none;transition:border-color .2s;"></select>
         <button id="createBtn">App erstellen</button>
         <button id="refreshBtn" class="secondary">🔄 Refresh</button>
@@ -654,6 +689,56 @@
         <button id="logsBtn" class="secondary">Logs laden</button>
       </div>
       <pre id="logs">(Keine Logs geladen)</pre>
+    </div>
+  </div>
+
+  <!-- 2FA management card (shown when logged in) -->
+  <div id="twofa" class="card hidden">
+    <h2>🔐 Zwei-Faktor-Authentifizierung</h2>
+
+    <!-- Status: disabled -->
+    <div id="twofaDisabledView">
+      <p style="margin-bottom:16px;color:var(--text-muted);">
+        <span class="status-dot inactive"></span>2FA ist <strong>nicht aktiv</strong>. Aktiviere es für mehr Sicherheit.
+      </p>
+      <button id="twofaSetupBtn">2FA Einrichten</button>
+    </div>
+
+    <!-- Status: setup in progress (QR code) -->
+    <div id="twofaSetupView" class="hidden">
+      <p style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">
+        <strong>Schritt 1:</strong> Scanne den QR-Code mit Google Authenticator, Authy oder einer anderen Authenticator-App.
+      </p>
+      <img id="twofaQrImg" alt="QR Code" style="border-radius:8px;display:block;margin-bottom:12px;background:#fff;padding:8px;" />
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Manueller Code: <span id="twofaSecretText" style="font-family:'JetBrains Mono',monospace;letter-spacing:2px;color:var(--text-secondary);"></span></p>
+      <p style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">
+        <strong>Schritt 2:</strong> Gib den generierten 6-stelligen Code ein um die Einrichtung zu bestätigen:
+      </p>
+      <div class="row">
+        <input id="twofaConfirmCode" class="totp-input" placeholder="000000" maxlength="6" inputmode="numeric" autocomplete="one-time-code" />
+        <button id="twofaActivateBtn">Aktivieren</button>
+        <button id="twofaCancelSetupBtn" class="secondary">Abbrechen</button>
+      </div>
+      <span id="twofaSetupStatus" style="display:block;margin-top:10px;font-size:14px;font-weight:500;"></span>
+    </div>
+
+    <!-- Status: enabled -->
+    <div id="twofaEnabledView" class="hidden">
+      <p style="margin-bottom:16px;color:var(--text-secondary);">
+        <span class="status-dot active"></span>2FA ist <strong style="color:var(--status-online);">aktiv</strong> und schützt deinen Account.
+      </p>
+      <button id="twofaDisableBtn" class="danger">2FA Deaktivieren</button>
+    </div>
+
+    <!-- Status: disable confirmation -->
+    <div id="twofaDisableView" class="hidden">
+      <p style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">Gib deinen aktuellen Authenticator-Code ein um 2FA zu deaktivieren:</p>
+      <div class="row">
+        <input id="twofaDisableCode" class="totp-input" placeholder="000000" maxlength="6" inputmode="numeric" autocomplete="one-time-code" />
+        <button id="twofaDisableConfirmBtn" class="danger">Deaktivieren</button>
+        <button id="twofaCancelDisableBtn" class="secondary">Abbrechen</button>
+      </div>
+      <span id="twofaDisableStatus" style="display:block;margin-top:10px;font-size:14px;font-weight:500;"></span>
     </div>
   </div>
 

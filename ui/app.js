@@ -20,6 +20,11 @@ const logAppInput = document.getElementById('logApp');
 const logsPre = document.getElementById('logs');
 const templateSelect = document.getElementById('templateSelect');
 const templateDesc = document.getElementById('templateDesc');
+const twofaDiv = document.getElementById('twofa');
+
+// 2FA login state
+let challengeToken = null;
+let setupToken = null;
 
 // Set auth UI state
 function setAuthUI() {
@@ -29,8 +34,140 @@ function setAuthUI() {
   } else {
     loginDiv.classList.remove('hidden');
     appDiv.classList.add('hidden');
+    twofaDiv.classList.add('hidden');
+    hideTotpStep();
   }
 }
+
+// ── 2FA Login step ────────────────────────────────────────────────────────────
+function showTotpStep() {
+  document.getElementById('loginCredentials').classList.add('hidden');
+  document.getElementById('totpSection').classList.remove('hidden');
+  document.getElementById('totpInput').focus();
+}
+
+function hideTotpStep() {
+  document.getElementById('loginCredentials').classList.remove('hidden');
+  document.getElementById('totpSection').classList.add('hidden');
+  document.getElementById('totpInput').value = '';
+  document.getElementById('totpStatus').textContent = '';
+  challengeToken = null;
+}
+
+async function doVerifyTotp() {
+  const code = document.getElementById('totpInput').value.trim();
+  const totpStatus = document.getElementById('totpStatus');
+
+  if (code.length < 6) {
+    showStatus(totpStatus, '✗ Bitte einen 6-stelligen Code eingeben', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/2fa/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ challengeToken, code })
+    });
+    if (!res.ok) {
+      const err = new Error(await res.text()); err.status = res.status; throw err;
+    }
+    const data = await res.json();
+    token = data.token;
+    localStorage.setItem("token", token);
+    hideTotpStep();
+    showStatus(loginStatus, '✓ Login erfolgreich!', 'success');
+    setAuthUI();
+    await Promise.all([loadTemplates(), refresh(), load2faStatus()]);
+  } catch (e) {
+    const msg = (() => { try { return JSON.parse(e.message).error; } catch { return e.message; } })();
+    showStatus(totpStatus, `✗ ${msg}`, 'error');
+    document.getElementById('totpInput').value = '';
+    document.getElementById('totpInput').focus();
+  }
+}
+
+// Auto-submit TOTP when 6 digits are entered
+document.getElementById('totpInput').addEventListener('input', (e) => {
+  if (e.target.value.replace(/\D/g, '').length === 6) doVerifyTotp();
+});
+
+// ── 2FA Management ────────────────────────────────────────────────────────────
+function show2faView(view) {
+  // view: 'disabled' | 'setup' | 'enabled' | 'disable'
+  document.getElementById('twofaDisabledView').classList.toggle('hidden', view !== 'disabled');
+  document.getElementById('twofaSetupView').classList.toggle('hidden', view !== 'setup');
+  document.getElementById('twofaEnabledView').classList.toggle('hidden', view !== 'enabled');
+  document.getElementById('twofaDisableView').classList.toggle('hidden', view !== 'disable');
+}
+
+async function load2faStatus() {
+  try {
+    const res = await api("/api/2fa/status");
+    const { enabled } = await res.json();
+    twofaDiv.classList.remove('hidden');
+    show2faView(enabled ? 'enabled' : 'disabled');
+  } catch { /* silently ignore */ }
+}
+
+async function start2faSetup() {
+  try {
+    const res = await api("/api/2fa/setup");
+    const data = await res.json();
+    setupToken = data.setupToken;
+    document.getElementById('twofaQrImg').src = data.qrDataUrl;
+    // Extract and format the base32 secret for manual entry
+    const raw = data.otpauth.split('secret=')[1]?.split('&')[0] ?? '';
+    document.getElementById('twofaSecretText').textContent = raw.match(/.{1,4}/g)?.join(' ') ?? raw;
+    document.getElementById('twofaConfirmCode').value = '';
+    document.getElementById('twofaSetupStatus').textContent = '';
+    show2faView('setup');
+    document.getElementById('twofaConfirmCode').focus();
+  } catch (e) {
+    const msg = (() => { try { return JSON.parse(e.message).error; } catch { return e.message; } })();
+    showStatus(document.getElementById('twofaSetupStatus'), `✗ ${msg}`, 'error');
+  }
+}
+
+async function activate2fa() {
+  const code = document.getElementById('twofaConfirmCode').value.trim();
+  const st = document.getElementById('twofaSetupStatus');
+  if (code.length < 6) { showStatus(st, '✗ Bitte einen 6-stelligen Code eingeben', 'error'); return; }
+  try {
+    await api("/api/2fa/setup", { method: "POST", body: JSON.stringify({ setupToken, code }) });
+    setupToken = null;
+    show2faView('enabled');
+  } catch (e) {
+    const msg = (() => { try { return JSON.parse(e.message).error; } catch { return e.message; } })();
+    showStatus(st, `✗ ${msg}`, 'error');
+    document.getElementById('twofaConfirmCode').value = '';
+    document.getElementById('twofaConfirmCode').focus();
+  }
+}
+
+async function disable2fa() {
+  const code = document.getElementById('twofaDisableCode').value.trim();
+  const st = document.getElementById('twofaDisableStatus');
+  if (code.length < 6) { showStatus(st, '✗ Bitte einen 6-stelligen Code eingeben', 'error'); return; }
+  try {
+    await api("/api/2fa/disable", { method: "POST", body: JSON.stringify({ code }) });
+    document.getElementById('twofaDisableCode').value = '';
+    show2faView('disabled');
+  } catch (e) {
+    const msg = (() => { try { return JSON.parse(e.message).error; } catch { return e.message; } })();
+    showStatus(st, `✗ ${msg}`, 'error');
+    document.getElementById('twofaDisableCode').value = '';
+    document.getElementById('twofaDisableCode').focus();
+  }
+}
+
+// Auto-submit for 2FA setup confirm
+document.getElementById('twofaConfirmCode').addEventListener('input', (e) => {
+  if (e.target.value.replace(/\D/g, '').length === 6) activate2fa();
+});
+document.getElementById('twofaDisableCode').addEventListener('input', (e) => {
+  if (e.target.value.replace(/\D/g, '').length === 6) disable2fa();
+});
 
 // API helper function
 async function api(path, opts = {}) {
@@ -114,12 +251,20 @@ async function doLogin() {
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
+    // 2FA required: show TOTP input instead of completing login
+    if (data.requires2fa) {
+      challengeToken = data.challengeToken;
+      loginStatus.textContent = '';
+      showTotpStep();
+      return;
+    }
+
     token = data.token;
     localStorage.setItem("token", token);
 
     showStatus(loginStatus, '✓ Login erfolgreich!', 'success');
     setAuthUI();
-    await Promise.all([loadTemplates(), refresh()]);
+    await Promise.all([loadTemplates(), refresh(), load2faStatus()]);
   } catch (e) {
     showStatus(loginStatus, `✗ Login fehlgeschlagen: ${e.message}`, 'error');
   }
@@ -356,6 +501,17 @@ document.addEventListener("click", (e) => {
   if (t.id === "loginBtn") doLogin();
   if (t.id === "logoutBtn") doLogout();
   if (t.id === "passToggle") togglePassword();
+  // 2FA login step
+  if (t.id === "totpSubmitBtn") doVerifyTotp();
+  if (t.id === "totpBackBtn") hideTotpStep();
+  // 2FA management
+  if (t.id === "twofaSetupBtn") start2faSetup();
+  if (t.id === "twofaActivateBtn") activate2fa();
+  if (t.id === "twofaCancelSetupBtn") { setupToken = null; show2faView('disabled'); }
+  if (t.id === "twofaDisableBtn") { document.getElementById('twofaDisableCode').value = ''; show2faView('disable'); document.getElementById('twofaDisableCode').focus(); }
+  if (t.id === "twofaDisableConfirmBtn") disable2fa();
+  if (t.id === "twofaCancelDisableBtn") show2faView('enabled');
+  // App management
   if (t.id === "createBtn") createApp();
   if (t.id === "refreshBtn") refresh();
   if (t.id === "logsBtn") loadLogs();
@@ -396,6 +552,7 @@ if (token) {
   // refresh() calls setAuthUI() on success, or clears token + shows login on 401.
   refresh().then(() => {
     loadTemplates();
+    load2faStatus();
     startAutoRefresh();
   });
 } else {
